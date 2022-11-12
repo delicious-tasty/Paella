@@ -52,19 +52,19 @@ def train(proc_id, args):
     for step, (images, captions) in pbar:
         images = images.to(device)
         with torch.no_grad():
-            image_indices = encode(vqmodel, images)
-            r = torch.rand(images.size(0), device=device)
-            noised_indices, mask = model.module.add_noise(image_indices, r)
+            image_indices = encode(vqmodel, images)  # encode images (batch_size x 3 x 256 x 256) to tokens (batch_size x 32 x 32)
+            r = torch.rand(images.size(0), device=device)  # generate random timesteps
+            noised_indices, mask = model.module.add_noise(image_indices, r)  # noise the tokens according to the timesteps
 
-            if np.random.rand() < 0.1:  # 10% of the times...
+            if np.random.rand() < 0.1:  # 10% of the times -> unconditional training for classifier-free-guidance
                 text_embeddings = images.new_zeros(images.size(0), 1024)
             else:
                 text_tokens = tokenizer.tokenize(captions)
                 text_tokens = text_tokens.to(device)
-                text_embeddings = clip_model.encode_text(text_tokens).float()
+                text_embeddings = clip_model.encode_text(text_tokens).float()  # text embeddings (batch_size x 1024)
 
-        pred = model(noised_indices, text_embeddings, r)
-        loss = criterion(pred, image_indices)
+        pred = model(noised_indices, text_embeddings, r)  # predict denoised tokens (batch_size x 32 x 32 x 8192
+        loss = criterion(pred, image_indices)  # cross entropy loss
         loss_adjusted = loss / args.accum_grad
 
         loss_adjusted.backward()
